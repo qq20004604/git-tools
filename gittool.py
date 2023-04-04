@@ -327,10 +327,10 @@ class GitTool:
 
             print(f"总计{len(selected_branches)}个分支。")
             for branch in selected_branches:
-                # logging.info(f"----- 小分割线 -----")
-                # logging.info(f"正在处理分支：{branch}")
-                # print(f"正在处理分支：{branch}")
-                continue
+                logging.info(f"----- 小分割线 -----")
+                logging.info(f"正在处理分支：{branch}")
+                print(f"正在处理分支：{branch}")
+                # continue
 
                 # 检查目录是否存在，如果存在则删除
                 local_repo_path = f"{project.name}-{branch}"
