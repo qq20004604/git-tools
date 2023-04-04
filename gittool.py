@@ -34,8 +34,8 @@ class GitTool:
     # 读取配置
     def read_config(self):
         # 读取配置文件
-        with open('config_private.yml') as file:
-            # with open('config.yml') as file:
+        # with open('config_private.yml') as file:
+        with open('config.yml') as file:
             config = yaml.safe_load(file)
 
         self.config = config
@@ -223,10 +223,6 @@ class GitTool:
         group = self.gl.groups.get(self.config['type_group']['group_id'])
         projects = group.projects.list(all=True)
 
-        # 测试模式下只遍历第一个仓库
-        if self.config['test_mode'] is True:
-            projects = projects[:1]
-
         # 对仓库进行过滤，如果是普通模式，则遍历
         if self.config['type_group']['project_match_type'] == 'normal':
             l = []
@@ -244,7 +240,9 @@ class GitTool:
             projects = l
 
         # projects_name_log = [project.name for project in projects]
-        print("本次处理的项目有：", [project.name for project in projects])
+        msg = "本次处理的项目有：", [project.name for project in projects]
+        print(msg)
+        logging.info(msg)
         return projects
 
     # 群组模式：过滤分支（将不需要处理的分支过滤掉）
@@ -324,8 +322,15 @@ class GitTool:
     # 将项目clone到本地，然后进行处理（调用函数遍历项目查询字符串）
     def _clone_and_deal(self, branch, project, repo):
         logging.info(f"----- 小分割线 -----")
-        logging.info(f"正在处理分支：{branch}")
-        print(f"正在处理分支：{branch}")
+        msg = f"正在处理分支：{branch}"
+        logging.info(msg)
+        print(msg)
+        # 测试模式下，这里直接返回，不进行具体处理
+        if self.config['test_mode'] is True and self.config['test_only_show_branch'] is True:
+            msg = f"测试模式警告：test_mode 与 test_only_show_branch 为 true，因此不处理分支，直接返回"
+            logging.info(msg)
+            print(msg)
+            return
 
         # 检查目录是否存在，如果存在则删除
         local_repo_path = f"{project.name}-{branch}"

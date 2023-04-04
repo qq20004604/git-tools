@@ -12,6 +12,8 @@ gitlab_api_url: ''
 file_search_engine: "python"
 # 测试模式（高优先级，有很多特殊情况）
 test_mode: false
+# test_mode=true 时生效，不进行处理，只打印待处理的项目和分支
+test_only_show_branch: true
 
 # 文件匹配模式（只有文件名符合要求的才会被匹配）
 file_match:
@@ -32,6 +34,7 @@ type_group:
   project_match_type: 'all'
   # project_match_type 是 normal，这里则是字符串。
   # project_match_type 是 regexp，这里则是正则表达式
+  # 注意存在大小写匹配的情况
   project_match_str: ''
 
   # 分支匹配模式
@@ -43,5 +46,5 @@ type_group:
   branch_match_name: ''
   # 分支数限制 all 代表遍历所有分支，数字（最小为1）代表遍历指定数量分支。 branch_match_type='all' 时不生效
   branch_limit: 5
-  # last_commit_time 模式下，分支限制时间（默认是最近15天有过提交的分支）
+  # branch_match_type=last_commit_time 模式下，分支限制时间（默认是最近15天有过提交的分支）
   commit_since_before: 15
