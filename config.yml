@@ -1,0 +1,47 @@
+#### 基本配置
+# 仓库模式： group 群组模式，repository 单项目模式，repositories 多项目模式，local 本地模式
+# 注意：非本地模式，也是将项目拉到本地后进行处理。本地模式是给一个/多个本地的绝对路径，然后进行处理
+model: 'group'
+# token，指gitlab的个人访问令牌
+gitlab_api_access_token: ''
+# 被搜索的字符串（限单行）
+string_to_search: ''
+# gitlab的地址
+gitlab_api_url: ''
+# 文件查询引擎（默认是python，可以启用go）
+file_search_engine: "python"
+# 测试模式（高优先级，有很多特殊情况）
+test_mode: false
+
+# 文件匹配模式（只有文件名符合要求的才会被匹配）
+file_match:
+  # 模式：all 全文件遍历，normal 字符串匹配文件名，regexp 正则模式匹配，ext 后缀名匹配
+  # 默认不考虑 . 开头的文件/文件名
+  type: 'normal'
+  # 文件类型
+  file_type:
+    - .js
+
+
+#### 群组模式
+type_group:
+  # gitlab的token
+  group_id: 1
+  # group下，项目匹配，默认是all
+  # all 全文件遍历，normal 字符串匹配项目名，regexp 正则模式匹配
+  project_match_type: 'all'
+  # project_match_type 是 normal，这里则是字符串。
+  # project_match_type 是 regexp，这里则是正则表达式
+  project_match_str: ''
+
+  # 分支匹配模式
+  #     1. last_commit_time 默认，最后提交时间（即匹配提交时间最近的x个分支\
+  #     2. name_match 名称匹配，即分支名里包含该字符串的，就匹配成功（支持正则模式）
+  #     3. all 所有分支。如果分支数比较多的话，不推荐这个
+  branch_match_type: 'all'
+  # branch_match_type='name_match' 时生效，不填则报错退出
+  branch_match_name: ''
+  # 分支数限制 all 代表遍历所有分支，数字（最小为1）代表遍历指定数量分支。 branch_match_type='all' 时不生效
+  branch_limit: 1
+  # last_commit_time 模式下，分支限制时间（默认是最近15天有过提交的分支）
+  commit_since_before: 15
