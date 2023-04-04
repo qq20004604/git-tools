@@ -6,6 +6,12 @@
 
 输出日志参见：log文件夹
 
+安装依赖：
+
+```ssh
+pip install -r requirements.txt
+```
+
 
 ## 2、配置和自定义功能支持
 
