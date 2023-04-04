@@ -38,10 +38,10 @@ type_group:
   #     1. last_commit_time 默认，最后提交时间（即匹配提交时间最近的x个分支\
   #     2. name_match 名称匹配，即分支名里包含该字符串的，就匹配成功（支持正则模式）
   #     3. all 所有分支。如果分支数比较多的话，不推荐这个
-  branch_match_type: 'all'
+  branch_match_type: 'last_commit_time'
   # branch_match_type='name_match' 时生效，不填则报错退出
   branch_match_name: ''
   # 分支数限制 all 代表遍历所有分支，数字（最小为1）代表遍历指定数量分支。 branch_match_type='all' 时不生效
-  branch_limit: 1
+  branch_limit: 5
   # last_commit_time 模式下，分支限制时间（默认是最近15天有过提交的分支）
   commit_since_before: 15
