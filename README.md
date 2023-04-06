@@ -55,13 +55,19 @@ pip install -r requirements.txt
 3. branch_limit：已测试
 4. commit_since_before：已测试
 
-> 群组模式（type_group项配置）
+> 群组模式（type_group 项配置）
 
 1. group_id：已测试
 2. project_match_type：all 已测试，normal 已测试，regexp 已测试；
 
-> 单项目模式（type_repository项配置）
+> 单项目模式（type_repository 项配置）
 
 1. repository_model：已测试
 2. repository_id：已测试
 3. repository_name：已测试
+
+> 多项目模式（type_repositories 项配置）
+
+1. repositories_model：已测试
+2. repositories_id：已测试
+3. repositories_name：已测试

@@ -61,3 +61,15 @@ type_repository:
   repository_id: 1
   # 仓库名
   repository_name: 'abc/def'
+
+
+## 多项目模式
+type_repositories:
+  # id 根据仓库id获取项目，name 根据仓库名获取项目。二选一
+  repositories_model: 'name'
+  # 仓库id，把需要查询处理的复制粘贴到这里。每个一行
+  repositories_id:
+    - 1
+  # 仓库名，把需要查询处理的复制粘贴到这里。每个一行
+  repositories_name:
+    - 'abc/def'

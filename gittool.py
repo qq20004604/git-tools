@@ -69,7 +69,7 @@ class GitTool:
         self.gl = gitlab.Gitlab(config['gitlab_api_url'], private_token=self.config['gitlab_api_access_token'])
 
         # 检查配置
-        if self.config['model'] not in ['group', 'repository', 'group']:
+        if self.config['model'] not in ['group', 'repository', 'repositories']:
             print("model 模式错误，只能是 group 群组模式，repository 单项目模式，repositories 多项目模式")
             exit()
         return config
@@ -345,7 +345,7 @@ class GitTool:
         return selected_branches
 
     # 将项目clone到本地，然后进行处理（调用函数遍历项目查询字符串）
-    def _clone_and_deal(self, branch, project, repo):
+    def _clone_and_deal(self, branch, repo):
         logging.info(f"----- 小分割线 -----")
         msg = f"正在处理分支：{branch}"
         logging.info(msg)
@@ -358,13 +358,13 @@ class GitTool:
             return
 
         # 检查目录是否存在，如果存在则删除
-        local_repo_path = f"{project.name}-{branch}"
+        local_repo_path = f"tempdir/{repo.name}-{branch}"
         local_repo_pathlib = pathlib.Path(local_repo_path)
         if local_repo_pathlib.exists():
             shutil.rmtree(local_repo_path, ignore_errors=True)
 
         # 克隆仓库到本地临时目录
-        local_repo_path = f"{project.name}-{branch}"
+        local_repo_path = f"tempdir/{repo.name}-{branch}"
         Repo.clone_from(repo.http_url_to_repo, local_repo_path, branch=branch)
         print(f"已克隆到本地：{local_repo_path}")
 
@@ -386,7 +386,7 @@ class GitTool:
                 logging.info(f"正在处理文件：{os.path.abspath(os.path.join(local_repo_path, js_file_path))}")
                 print(f"正在处理文件：{os.path.abspath(os.path.join(local_repo_path, js_file_path))}")
                 # if os.path.abspath(os.path.join(local_repo_path,
-                #                                 js_file_path)) == "/Users/wangdong/githubProject/python3-lib/在git项目里寻找某个接口是否有调用/Special Transaction Center-CZP-TIP-864/src/api/maqian.js":
+                #                                 js_file_path)) == "/Users/wangdong/githubProject/python3-lib/在git项目里寻找某个接口是否有调用/Special-864/src/api/wd.js":
                 #     print("debug")
                 if self.config['file_search_engine'] == "python":
                     # 使用 python 来查询文件
@@ -419,7 +419,7 @@ class GitTool:
 
 
         except Exception as e:
-            self.err_logger.error(f"项目：{project.name}，处理分支 {branch} 时出错：{e}")
+            self.err_logger.error(f"项目：{repo.name}，处理分支 {branch} 时出错：{e}")
         finally:
             # 删除本地仓库临时目录
             shutil.rmtree(local_repo_path, ignore_errors=True)
@@ -491,7 +491,7 @@ class GitTool:
             logging.info(msg)
             for branch in selected_branches:
                 # 将项目clone到本地进行处理
-                self._clone_and_deal(branch, project, repo)
+                self._clone_and_deal(branch, repo)
 
     # 单项目模式
     def _search_by_model_repository(self):
@@ -501,23 +501,31 @@ class GitTool:
         logging.info(msg)
         print(msg)
         self._branch_option()
-        print("—————— 配置说明分割线（结束） ——————")
-        logging.info("—————— 配置说明分割线（结束） ——————")
 
         # 先判断是什么模式
         if self.config['type_repository']['repository_model'] == 'name':
-            repo = self.gl.projects.get(self.config['type_repository']['repository_name'])
-            msg = f"项目选择方式是：根据名称获取项目。项目名称是：{self.config['type_repository']['repository_name']}"
+            repo_name = self.config['type_repository']['repository_name']
+            # 处理一下，如果是全链接，则移除前面那部分gitlab的地址
+            repo_name = repo_name.replace(self.config['gitlab_api_url'], '')
+            # 再处理一下，如果第一个字母是 / ，则删除
+            if repo_name.startswith("/") is True:
+                repo_name = repo_name[1:]
+            repo = self.gl.projects.get(repo_name)
+            msg = f"项目选择方式是：根据名称获取项目。项目名称是：{repo_name}"
             logging.info(msg)
             print(msg)
         elif self.config['type_repository']['repository_model'] == 'id':
-            repo = self.gl.projects.get(self.config['type_repository']['repository_id'])
-            msg = f"项目选择方式是：根据仓库ID获取项目。项目名称是：{self.config['type_repository']['repository_name']}"
+            repo_id = self.config['type_repository']['repository_id']
+            repo = self.gl.projects.get(repo_id)
+            msg = f"项目选择方式是：根据仓库ID获取项目。项目ID是：{repo_id}，项目名称是：{repo.name}"
             logging.info(msg)
             print(msg)
         else:
             self.err_logger.info("无效配置，请检查type_repository.repository_model，程序已退出")
             exit()
+
+        print("—————— 配置说明分割线（结束） ——————")
+        logging.info("—————— 配置说明分割线（结束） ——————")
 
         # 再获取到所有分支
         branches = repo.branches.list(get_all=True)
@@ -529,11 +537,65 @@ class GitTool:
         logging.info(msg)
         for branch in selected_branches:
             # 将项目clone到本地进行处理
-            self._clone_and_deal(branch, repo, repo)
+            self._clone_and_deal(branch, repo)
 
     # 多项目模式
     def _get_projects_by_model_repositories(self):
-        pass
+        print("—————— 配置说明分割线（开始） ——————")
+        logging.info("—————— 配置说明分割线（开始） ——————")
+        msg = "本次处理的模式是：多项目模式（repositories）"
+        logging.info(msg)
+        print(msg)
+        self._branch_option()
+        project_list = []
+
+        # 先判断是什么模式
+        if self.config['type_repositories']['repositories_model'] == 'name':
+            for repo_name in self.config['type_repositories']['repositories_name']:
+                # 处理一下，如果是全链接，则移除前面那部分gitlab的地址
+                repo_name = repo_name.replace(self.config['gitlab_api_url'], '')
+                # 再处理一下，如果第一个字母是 / ，则删除
+                if repo_name.startswith("/") is True:
+                    repo_name = repo_name[1:]
+                repo = self.gl.projects.get(repo_name)
+                project_list.append(repo)
+            name_list = [project.name for project in project_list]
+            msg = f"项目选择方式是：根据名称获取项目。项目有：{name_list}"
+            logging.info(msg)
+            print(msg)
+        elif self.config['type_repositories']['repositories_model'] == 'id':
+            for repo_id in self.config['type_repositories']['repositories_id']:
+                repo = self.gl.projects.get(repo_id)
+                project_list.append(repo)
+
+            name_list = [project.name for project in project_list]
+            msg = f"项目选择方式是：根据仓库ID获取项目。项目ID是：{self.config['type_repositories']['repositories_id']}，项目名称是：{name_list}"
+            logging.info(msg)
+            print(msg)
+        else:
+            self.err_logger.info("无效配置，type_repositories.repositories_model，程序已退出")
+            exit()
+
+        print("—————— 配置说明分割线（结束） ——————")
+        logging.info("—————— 配置说明分割线（结束） ——————")
+
+        # 遍历所有项目
+        for project in project_list:
+            logging.info("==== 大分割线 ====")
+            logging.info(f"正在处理项目：{project.name}")
+            print("==== 大分割线 ====")
+            print(f"正在处理项目：{project.name}")
+            # 再获取到所有分支
+            branches = project.branches.list(get_all=True)
+
+            # 过滤分支，只获取指定分支
+            selected_branches = self._filter_branches(branches, project)
+            msg = f"总计{len(selected_branches)}个分支。"
+            print(msg)
+            logging.info(msg)
+            for branch in selected_branches:
+                # 将项目clone到本地进行处理
+                self._clone_and_deal(branch, project)
 
     # 本地模式
     def _get_projects_by_model_local(self):
@@ -552,7 +614,7 @@ class GitTool:
         elif self.config['model'] == 'repository':
             self._search_by_model_repository()
         elif self.config['model'] == 'repositories':
-            pass
+            self._get_projects_by_model_repositories()
         elif self.config['model'] == 'local':
             pass
         else:
@@ -560,6 +622,7 @@ class GitTool:
             print(err_msg)
             self.err_logger.info(err_msg)
             exit()
+        shutil.rmtree('tempdir', ignore_errors=True)
         self.workbook.save('./log/match.xlsx')
         print("处理完毕")
 
