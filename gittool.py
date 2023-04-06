@@ -49,6 +49,21 @@ class GitTool:
         with open('config.yml') as file:
             config = yaml.safe_load(file)
 
+        # 兼容性处理（开始）
+        # 1. 处理 branch 提取出来
+        if 'branch' not in config:
+            branch_dict = {
+                'branch': {
+                    'branch_match_type': config['type_group']['branch_match_type'],
+                    'branch_match_name': config['type_group']['branch_match_name'],
+                    'branch_limit': config['type_group']['branch_limit'],
+                    'commit_since_before': config['type_group']['commit_since_before'],
+                }
+            }
+            config.update(branch_dict)
+
+        # 兼容性处理（结束）
+
         self.config = config
         # 设置 GitLab API 客户端
         self.gl = gitlab.Gitlab(config['gitlab_api_url'], private_token=self.config['gitlab_api_access_token'])
@@ -256,24 +271,24 @@ class GitTool:
         logging.info(msg)
         return projects
 
-    # 群组模式：过滤分支（将不需要处理的分支过滤掉）
+    # 过滤分支（将不需要处理的分支过滤掉）
     # 参数1：branches 指该项目下所有分支
     # 参数2：repo 指项目（一个对象）
-    def _filter_branches_by_group(self, branches, repo):
+    def _filter_branches(self, branches, repo):
         selected_branches = []
         # 如果匹配模式是全部分支
-        if self.config['type_group']['branch_match_type'] == "all":
+        if self.config['branch']['branch_match_type'] == "all":
             print("当前寻找分支模式是：全部分支")
             selected_branches = [branch.name for branch in branches]
-        elif self.config['type_group']['branch_match_type'] == "name_match":
+        elif self.config['branch']['branch_match_type'] == "name_match":
             print("当前寻找分支模式是：名称匹配")
             all_branch_names = [branch.name for branch in branches]
             for branch_name in all_branch_names:
                 # 解析字符串
-                branch_match_name = self.config['type_group']['branch_match_name']
+                branch_match_name = self.config['branch']['branch_match_name']
                 # 避免不写情况，不写则默认为所有
                 if len(branch_match_name) == 0:
-                    err_msg = "错误：当 type_group.branch_match_type 为 name_match 时，type_group.branch_match_name 不能可为空。"
+                    err_msg = "错误：当 branch.branch_match_type 为 name_match 时，branch.branch_match_name 不能可为空。"
                     print(err_msg)
                     self.err_logger.info(err_msg)
                     exit()
@@ -283,7 +298,7 @@ class GitTool:
                 if len(regex.findall(branch_name)) > 0:
                     # 匹配成功则添加
                     selected_branches.append(branch_name)
-        elif self.config['type_group']['branch_match_type'] == "last_commit_time":
+        elif self.config['branch']['branch_match_type'] == "last_commit_time":
             # 存储每个分支的最新提交时间和分支名称的元组
             branch_commits = []
             # 按最后提交时间进行匹配
@@ -314,19 +329,18 @@ class GitTool:
             selected_branches = [b[1] for b in sorted(branch_commits, reverse=True)]
             print(f"所有分支排序后为：{selected_branches}")
         else:
-            err_msg = "错误：当 model 为 group 时，未找到合法的 type_group.branch_match_type"
+            err_msg = "错误：当 model 为 group 时，未找到合法的 branch.branch_match_type"
             print(err_msg)
             self.err_logger.info(err_msg)
             exit()
 
         # 此时拿到该项目下符合要求的分支，准备clone项目并进行处理
         # 非全部分支模式下，则限定分支进行处理
-        if self.config['type_group']['branch_match_type'] != 'all' and self.config['type_group'][
-            'branch_limit'] != 'all':
-            if self.config['type_group']['branch_limit'] > 0:
-                print("目前限定处理分支数量是：", self.config['type_group']['branch_limit'])
+        if self.config['branch']['branch_match_type'] != 'all' and self.config['branch']['branch_limit'] != 'all':
+            if self.config['branch']['branch_limit'] > 0:
+                print("目前限定处理分支数量是：", self.config['branch']['branch_limit'])
                 # 则限制指定数量的分支数
-                selected_branches = selected_branches[:self.config['type_group']['branch_limit']]
+                selected_branches = selected_branches[:self.config['branch']['branch_limit']]
 
         return selected_branches
 
@@ -410,8 +424,31 @@ class GitTool:
             # 删除本地仓库临时目录
             shutil.rmtree(local_repo_path, ignore_errors=True)
 
+    # 分支处理模式
+    def _branch_option(self):
+        if self.config['branch']['branch_match_type'] == 'all':
+            msg = f"当前分支匹配模式是：全部分支"
+            logging.info(msg)
+            print(msg)
+        elif self.config['branch']['branch_match_type'] == 'last_commit_time':
+            # 计算n天前的日期
+            self.commit_since_before = self.config['branch']['commit_since_before'] or 15
+            msg = f"当前寻找分支模式是：按最后提交时间。时间限制为最近{self.commit_since_before}天提交过的分支，然后对其进行排序，按提交顺序从近到远获取若干个分支进行处理。"
+            logging.info(msg)
+            print(msg)
+            msg = f"分支数为：{self.config['branch']['branch_limit']}"
+            logging.info(msg)
+            print(msg)
+        elif self.config['branch']['branch_match_type'] == 'name_match':
+            msg = f"当前寻找分支模式是：名称匹配。关键词为：{self.config['branch']['branch_match_name']}"
+            logging.info(msg)
+            print(msg)
+            msg = f"分支数为：{self.config['branch']['branch_limit']}"
+            logging.info(msg)
+            print(msg)
+
     # 群组模式
-    def _get_projects_by_model_group(self):
+    def _search_by_model_group(self):
         print("—————— 配置说明分割线（开始） ——————")
         logging.info("—————— 配置说明分割线（开始） ——————")
         msg = "本次处理的模式是：群组模式（group）"
@@ -428,28 +465,7 @@ class GitTool:
             msg = f"项目筛选条件是：正则表达式。正则表达式是：{self.config['type_group']['project_match_str']}"
         logging.info(msg)
         print(msg)
-
-        if self.config['type_group']['branch_match_type'] == 'all':
-            msg = f"当前分支匹配模式是：全部分支"
-            logging.info(msg)
-            print(msg)
-        elif self.config['type_group']['branch_match_type'] == 'last_commit_time':
-            # 计算n天前的日期
-            self.commit_since_before = self.config['type_group']['commit_since_before'] or 15
-            msg = f"当前寻找分支模式是：按最后提交时间。时间限制为最近{self.commit_since_before}天提交过的分支，然后对其进行排序，按提交顺序从近到远获取若干个分支进行处理。"
-            logging.info(msg)
-            print(msg)
-            msg = f"分支数为：{self.config['type_group']['branch_limit']}"
-            logging.info(msg)
-            print(msg)
-        elif self.config['type_group']['branch_match_type'] == 'name_match':
-            msg = f"当前寻找分支模式是：名称匹配。关键词为：{self.config['type_group']['branch_match_name']}"
-            logging.info(msg)
-            print(msg)
-            msg = f"分支数为：{self.config['type_group']['branch_limit']}"
-            logging.info(msg)
-            print(msg)
-
+        self._branch_option()
         print("—————— 配置说明分割线（结束） ——————")
         logging.info("—————— 配置说明分割线（结束） ——————")
 
@@ -468,7 +484,7 @@ class GitTool:
             branches = repo.branches.list(get_all=True)
 
             # 过滤分支，只获取指定分支
-            selected_branches = self._filter_branches_by_group(branches, repo)
+            selected_branches = self._filter_branches(branches, repo)
 
             msg = f"总计{len(selected_branches)}个分支。"
             print(msg)
@@ -478,8 +494,42 @@ class GitTool:
                 self._clone_and_deal(branch, project, repo)
 
     # 单项目模式
-    def _get_projects_by_model_repository(self):
-        pass
+    def _search_by_model_repository(self):
+        print("—————— 配置说明分割线（开始） ——————")
+        logging.info("—————— 配置说明分割线（开始） ——————")
+        msg = "本次处理的模式是：单项目模式（repository）"
+        logging.info(msg)
+        print(msg)
+        self._branch_option()
+        print("—————— 配置说明分割线（结束） ——————")
+        logging.info("—————— 配置说明分割线（结束） ——————")
+
+        # 先判断是什么模式
+        if self.config['type_repository']['repository_model'] == 'name':
+            repo = self.gl.projects.get(self.config['type_repository']['repository_name'])
+            msg = f"项目选择方式是：根据名称获取项目。项目名称是：{self.config['type_repository']['repository_name']}"
+            logging.info(msg)
+            print(msg)
+        elif self.config['type_repository']['repository_model'] == 'id':
+            repo = self.gl.projects.get(self.config['type_repository']['repository_id'])
+            msg = f"项目选择方式是：根据仓库ID获取项目。项目名称是：{self.config['type_repository']['repository_name']}"
+            logging.info(msg)
+            print(msg)
+        else:
+            self.err_logger.info("无效配置，请检查type_repository.repository_model，程序已退出")
+            exit()
+
+        # 再获取到所有分支
+        branches = repo.branches.list(get_all=True)
+
+        # 过滤分支，只获取指定分支
+        selected_branches = self._filter_branches(branches, repo)
+        msg = f"总计{len(selected_branches)}个分支。"
+        print(msg)
+        logging.info(msg)
+        for branch in selected_branches:
+            # 将项目clone到本地进行处理
+            self._clone_and_deal(branch, repo, repo)
 
     # 多项目模式
     def _get_projects_by_model_repositories(self):
@@ -496,11 +546,11 @@ class GitTool:
         # 添加本次任务开始执行时间
         logging.info(f"本次任务开始执行时间: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
-        # 1. 先根据模式，拉取
+        # 调用各自模式的函数去处理
         if self.config['model'] == 'group':
-            projects = self._get_projects_by_model_group()
+            self._search_by_model_group()
         elif self.config['model'] == 'repository':
-            pass
+            self._search_by_model_repository()
         elif self.config['model'] == 'repositories':
             pass
         elif self.config['model'] == 'local':
