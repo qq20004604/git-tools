@@ -31,8 +31,19 @@ class GitTool:
         # 时间限制
         self.commit_since_before = None
 
+    # 初始化
+    def init(self):
+        # 删除历史文件
+        self._remove_oldfile()
+        # 设置日志
+        self._set_log()
+        # 启动 excel
+        self._open_excel()
+        # 读取配置
+        self._read_config()
+
     # 读取配置
-    def read_config(self):
+    def _read_config(self):
         # 读取配置文件
         # with open('config_private.yml') as file:
         with open('config.yml') as file:
@@ -49,7 +60,7 @@ class GitTool:
         return config
 
     # 删除历史文件
-    def remove_oldfile(self):
+    def _remove_oldfile(self):
         # 开始前先删除文件
         files_to_delete = ['./log/match.log', './log/branch.log', './log/err.log', './log/output.log',
                            './log/match.xlsx']
@@ -62,7 +73,7 @@ class GitTool:
                 print(f"文件 {file} 不存在，无需清理")
 
     # 检查excel
-    def open_excel(self):
+    def _open_excel(self):
         # 尝试打开 Excel 文件以检查是否可以读写
         try:
             self.workbook = load_workbook(filename='./log/match.xlsx')
@@ -87,7 +98,7 @@ class GitTool:
             self.worksheet.append(["仓库名", "分支名", "文件路径", "文件行数"])
 
     # 日志设置
-    def set_log(self):
+    def _set_log(self):
         if not os.path.exists("log"):
             os.mkdir("log")
             print("日志目录已创建")
@@ -506,13 +517,13 @@ class GitTool:
 if __name__ == '__main__':
     gt = GitTool()
     # 删除历史文件
-    gt.remove_oldfile()
+    gt._remove_oldfile()
     # 设置日志
-    gt.set_log()
+    gt._set_log()
     # 启动 excel
-    gt.open_excel()
+    gt._open_excel()
     # 读取配置
-    gt.read_config()
+    gt._read_config()
     # 启动程序
     gt.run()
 
