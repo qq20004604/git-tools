@@ -1,7 +1,7 @@
 import sys
 import yaml
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTextEdit, QPushButton, QComboBox, QLineEdit, QLabel, \
-    QVBoxLayout, QHBoxLayout, QWidget
+    QVBoxLayout, QHBoxLayout, QWidget, QFormLayout, QSizePolicy
 from PyQt5.QtCore import Qt
 
 
@@ -10,6 +10,8 @@ class BaseUI:
         self.ui = ui
         self.is_editable = False
         self.controls = {}
+        self.label_width = 120
+        self.row_height = 20
 
     # 添加一个输入框
     def add_input(self, form_layout, key, label, callback=lambda text: text):
@@ -32,8 +34,12 @@ class BaseUI:
         item['layout'].setLayout(layout)
 
         # 设定 item['label'] 的宽度
-        label_width = 100
-        item['label'].setFixedWidth(label_width)
+        item['label'].setFixedWidth(self.label_width)
+        item['label'].setFixedHeight(self.row_height)
+        item['edit'].setFixedHeight(self.row_height)
+        item['text'].setFixedHeight(self.row_height)
+        item['edit'].setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        item['text'].setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         item['edit'].textChanged.connect(callback)
         # 然后根据判断，看 form_layout 放哪个
@@ -46,12 +52,21 @@ class BaseUI:
         else:
             item['edit'].hide()
 
-        form_layout.addWidget(item['layout'], 1)
+        form_layout.addRow(item['layout'])
         self.controls[key] = item
         return item
 
     # 添加一个下拉框
     def add_select(self, form_layout, key, label, options, callback=lambda text: text):
+        # 嵌套关系
+        # - form_layout                     QFormLayout 表单控件
+        #   - item['layout']                QWidget     本行最外围的空间
+        #     - layout                      QHBoxLayout
+        #       - item['label']             QLabel      文字
+        #       - right_widget              QWidget
+        #         - right_widget_layout     QHBoxLayout
+        #           - item['edit']          QComboBox   编辑输入框
+        #           - item['text']          QLabel      纯文本显示值
         item = {
             # 容器控件
             'layout': QWidget(),
@@ -67,29 +82,48 @@ class BaseUI:
             'key': '',
             'type': 'QComboBox',
         }
-        layout = QHBoxLayout()
-        item['layout'].setLayout(layout)
+        #
+        layout = QHBoxLayout(item['layout'])
+        layout.setContentsMargins(20, 0, 20, 0)
+        layout.addWidget(item['label'])
+        item['l'] = layout
+
+        # 生成一个右侧的widget，将编辑/文本两个控件填充进去
+        right_widget = QWidget()
+
+        # 生成 right_widget 的子容器，将其填充进去
+        right_widget_layout = QHBoxLayout(right_widget)
+        right_widget_layout.setContentsMargins(0, 0, 0, 0)
+        right_widget_layout.addWidget(item['edit'])
+        right_widget_layout.addWidget(item['text'])
+        # 设置最里面的2个的宽度
+        item['edit'].setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        item['text'].setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        layout.addWidget(right_widget)
 
         # 设定 item['label'] 的宽度
-        label_width = 100
-        item['label'].setFixedWidth(label_width)
+        item['label'].setFixedWidth(self.label_width)
+        item['label'].setFixedHeight(self.row_height)
+        item['edit'].setFixedHeight(self.row_height)
+        item['text'].setFixedHeight(self.row_height)
 
         # 然后根据判断，看 form_layout 放哪个
-        layout.addWidget(item['label'], 1, alignment=Qt.AlignLeft)
+        layout.addWidget(item['label'])
 
         for option in options:
             item['edit'].addItem(option['label'], option['value'])
 
         item['edit'].currentTextChanged.connect(lambda _: callback(item['edit'].currentData()))
-        layout.addWidget(item['edit'], 10, alignment=Qt.AlignLeft)
-        layout.addWidget(item['text'], 10, alignment=Qt.AlignLeft)
+        layout.addWidget(item['edit'])
+        layout.addWidget(item['text'])
 
         if self.is_editable:
             item['text'].hide()
         else:
             item['edit'].hide()
 
-        form_layout.addWidget(item['layout'], 1)
+        form_layout.addRow(item['layout'])
         self.controls[key] = item
         return item
 
@@ -207,7 +241,10 @@ class UI(QMainWindow):
 
     def initUI(self):
         # 创建表单布局
-        self.form_layout = QVBoxLayout()
+        self.form_layout = QFormLayout()
+        self.form_layout.setLabelAlignment(Qt.AlignLeft)
+        self.form_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        self.form_layout.setHorizontalSpacing(20)
 
         # 查询模式
         self.modelSelect = self.baseUI.add_select(self.form_layout, 'model', '查询模式', [
@@ -269,7 +306,12 @@ class UI(QMainWindow):
         self.show()
 
     def log(self):
+        print("——————————————————————————")
         print('log', self.baseUI.get_value())
+        print(self.form_layout.minimumSize())
+        print(self.baseUI.controls['test_mode']['layout'].width())
+        print(self.baseUI.controls['test_mode']['l'].minimumSize())
+        print(self.baseUI.controls['test_mode']['edit'].width())
 
     def set_status_edit(self):
         self.baseUI.edit_enable()
