@@ -24,7 +24,8 @@ class BaseUI:
             # 值
             'value': '',
             # key
-            'key': ''
+            'key': '',
+            'type': 'QLineEdit',
         }
         # 然后根据判断，看 form_layout 放哪个
         item['layout'].addWidget(item['label'])
@@ -54,7 +55,8 @@ class BaseUI:
             # 值
             'value': '',
             # key
-            'key': ''
+            'key': '',
+            'type': 'QComboBox',
         }
         # 然后根据判断，看 form_layout 放哪个
         item['layout'].addWidget(item['label'])
@@ -76,11 +78,11 @@ class BaseUI:
         self.controls[key] = item
         return item
 
-    def editEnable(self):
+    def edit_enable(self):
         self.is_editable = True
         self.update_controls()
 
-    def editDisable(self):
+    def edit_disable(self):
         self.is_editable = False
         self.update_controls()
 
@@ -93,33 +95,71 @@ class BaseUI:
                 self.controls[key]['text'].show()
                 self.controls[key]['edit'].hide()
 
-        # new_controls = []
-        # for label, control, control_type, *extra in self.controls:
-        #     control.deleteLater()
-        #
-        #     if self.is_editable:
-        #         if control_type == 'input':
-        #             new_control = QLineEdit(self.ui)
-        #             new_control.setText(control.text())
-        #         elif control_type == 'select':
-        #             options = extra[0]
-        #             new_control = QComboBox(self.ui)
-        #             for option in options:
-        #                 new_control.addItem(option['label'], option['value'])
-        #             new_control.setCurrentText(control.text())
-        #     else:
-        #         new_control = QLabel(self.ui)
-        #         if control_type == 'input':
-        #             new_control.setText(control.text())
-        #         else:  # control_type == 'select'
-        #             new_control.setText(control.currentText())
-        #
-        #     new_controls.append((label, new_control, control_type, *extra))
-        #
-        #     layout = control.parent()
-        #     layout.addWidget(new_control)
-        #
-        # self.controls = new_controls
+    def get_value(self):
+
+        m = {}
+        for key in self.controls:
+            if self.controls[key]['type'] == 'QLineEdit':
+                # 单行输入框
+                m[key] = self.controls[key]['edit'].text()
+            elif self.controls[key]['type'] == 'QTextEdit':
+                # 多行输入框
+                m[key] = self.controls[key]['edit'].toPlainText()
+            elif self.controls[key]['type'] == 'QSpinBox' or self.controls[key]['type'] == 'QDoubleSpinBox':
+                # 用于整数和浮点数输入
+                m[key] = self.controls[key]['edit'].value()
+            elif self.controls[key]['type'] == 'QCheckBox':
+                # 复选框
+                m[key] = self.controls[key]['edit'].isChecked()
+            elif self.controls[key]['type'] == 'QRadioButton':
+                # 单选按钮
+                m[key] = self.controls[key]['edit'].isChecked()
+            elif self.controls[key]['type'] == 'QComboBox':
+                # 下拉框
+                m[key] = self.controls[key]['edit'].currentText()
+            elif self.controls[key]['type'] == 'QSlider':
+                # 滑块
+                m[key] = self.controls[key]['edit'].value()
+            elif self.controls[key]['type'] == 'QDateEdit':
+                # 日期选择器
+                m[key] = self.controls[key]['edit'].date()
+            elif self.controls[key]['type'] == 'QDateTimeEdit':
+                # 日期时间选择器
+                m[key] = self.controls[key]['edit'].dateTime()
+
+        return m
+
+    def set_value(self, data):
+        for key in data:
+            if key in self.controls:
+                if self.controls[key]['type'] == 'QLineEdit':
+                    # 单行输入框
+                    self.controls[key]['edit'].setText(data[key])
+                elif self.controls[key]['type'] == 'QTextEdit':
+                    # 多行输入框
+                    self.controls[key]['edit'].setPlainText(data[key])
+                elif self.controls[key]['type'] == 'QSpinBox' or self.controls[key]['type'] == 'QDoubleSpinBox':
+                    # 用于整数和浮点数输入
+                    self.controls[key]['edit'].setValue(data[key])
+                elif self.controls[key]['type'] == 'QCheckBox':
+                    # 复选框
+                    self.controls[key]['edit'].setChecked(data[key])
+                elif self.controls[key]['type'] == 'QRadioButton':
+                    # 单选按钮
+                    self.controls[key]['edit'].setChecked(data[key])
+                elif self.controls[key]['type'] == 'QComboBox':
+                    # 下拉框
+                    self.controls[key]['edit'].setCurrentText(data[key])
+                elif self.controls[key]['type'] == 'QSlider':
+                    # 滑块
+                    self.controls[key]['edit'].setValue(data[key])
+                elif self.controls[key]['type'] == 'QDateEdit':
+                    # 日期选择器
+                    self.controls[key]['edit'].setDate(data[key])
+                elif self.controls[key]['type'] == 'QDateTimeEdit':
+                    # 日期时间选择器
+                    self.controls[key]['edit'].setDateTime(data[key])
+                self.controls[key]['text'].setText(data[key])
 
 
 class UI(QMainWindow):
@@ -157,13 +197,9 @@ class UI(QMainWindow):
         self.button_print = QPushButton('打印值', self)
         self.button_print.clicked.connect(self.log)
         self.button_edit_enable = QPushButton('编辑', self)
-        self.button_edit_enable.clicked.connect(self.baseUI.editEnable)
-        self.button_edit_disable = QPushButton('取消编辑', self)
-        self.button_edit_disable.clicked.connect(self.baseUI.editDisable)
-        # self.saveButton = QPushButton('保存', self)
-        # self.saveButton.clicked.connect(self.save)
-        # self.saveButton.hide()
-
+        self.button_edit_enable.clicked.connect(self.set_status_edit)
+        self.button_edit_disable = QPushButton('保存', self)
+        self.button_edit_disable.clicked.connect(self.save_data)
         # 创建表单
         self.form_widget = QWidget(self)
         self.form_widget.setLayout(self.form_layout)
@@ -186,32 +222,25 @@ class UI(QMainWindow):
         self.show()
 
     def log(self):
-        print(1)
-        print(self.modelSelect.currentData())
-        print(self.token.text())
+        print(self.baseUI.get_value())
 
-    def edit(self):
-        self.ui.editEnable()
-        # # 将表单切换到编辑模式，并显示保存和取消按钮
-        # self.modelSelect.setEnabled(True)
-        # self.token.setReadOnly(False)
-        # self.nameEdit.setReadOnly(False)
-        # self.genderCombo.setEnabled(True)
-        # self.editButton.hide()
-        # self.saveButton.show()
+    def set_status_edit(self):
+        self.baseUI.edit_enable()
+        self.button_edit_enable.hide()
+        self.button_edit_disable.show()
 
-    def save(self):
-        pass
-        # # 将表单切换到只读模式，并将表单数据保存到yml文件
-        # self.nameEdit.setReadOnly(True)
-        # self.genderCombo.setEnabled(False)
-        # self.saveButton.hide()
-        # self.editButton.show()
-        # data = {'姓名': self.nameEdit.text(), '性别': self.genderCombo.currentText()}
-        # fileName, _ = QFileDialog.getSaveFileName(self, '保存文件', '', 'YAML 文件 (*.yml)')
-        # if fileName:
-        #     with open(fileName, 'w') as f:
-        #         yaml.safe_dump(data, f)
+    def set_status_text(self):
+        self.baseUI.edit_disable()
+        self.button_edit_enable.show()
+        self.button_edit_disable.hide()
+
+    def save_data(self):
+        data = self.baseUI.get_value()
+        self.baseUI.set_value(data)
+        self.set_status_text()
+
+    def set_value(self, data):
+        self.baseUI.set_value(data)
 
     def loadYaml(self, fileName):
         # 从yml文件中加载数据，并将其显示在表单中
@@ -226,6 +255,7 @@ class UI(QMainWindow):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = UI()
+    ex.set_status_text()
     # 加载yml文件
     # ex.loadYaml('test.yml')
     sys.exit(app.exec_())
