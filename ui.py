@@ -2,6 +2,7 @@ import sys
 import yaml
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTextEdit, QPushButton, QComboBox, QLineEdit, QLabel, \
     QVBoxLayout, QHBoxLayout, QWidget
+from PyQt5.QtCore import Qt
 
 
 class BaseUI:
@@ -11,10 +12,10 @@ class BaseUI:
         self.controls = {}
 
     # 添加一个输入框
-    def add_input(self, form_layout, key, label):
+    def add_input(self, form_layout, key, label, callback=lambda text: text):
         item = {
             # 容器控件
-            'layout': QHBoxLayout(),
+            'layout': QWidget(),
             # label控件
             'label': QLabel(label, self.ui),
             # 编辑框控件，例如输入框、下拉框等
@@ -27,25 +28,33 @@ class BaseUI:
             'key': '',
             'type': 'QLineEdit',
         }
+        layout = QHBoxLayout()
+        item['layout'].setLayout(layout)
+
+        # 设定 item['label'] 的宽度
+        label_width = 100
+        item['label'].setFixedWidth(label_width)
+
+        item['edit'].textChanged.connect(callback)
         # 然后根据判断，看 form_layout 放哪个
-        item['layout'].addWidget(item['label'])
-        item['layout'].addWidget(item['edit'])
-        item['layout'].addWidget(item['text'])
+        layout.addWidget(item['label'], 1, alignment=Qt.AlignLeft)
+        layout.addWidget(item['edit'], 10, alignment=Qt.AlignLeft)
+        layout.addWidget(item['text'], 10, alignment=Qt.AlignLeft)
 
         if self.is_editable:
             item['text'].hide()
         else:
             item['edit'].hide()
 
-        form_layout.addLayout(item['layout'])
+        form_layout.addWidget(item['layout'], 1)
         self.controls[key] = item
         return item
 
     # 添加一个下拉框
-    def add_select(self, form_layout, key, label, options):
+    def add_select(self, form_layout, key, label, options, callback=lambda text: text):
         item = {
             # 容器控件
-            'layout': QHBoxLayout(),
+            'layout': QWidget(),
             # label控件
             'label': QLabel(label, self.ui),
             # 编辑框控件，例如输入框、下拉框等
@@ -58,23 +67,29 @@ class BaseUI:
             'key': '',
             'type': 'QComboBox',
         }
+        layout = QHBoxLayout()
+        item['layout'].setLayout(layout)
+
+        # 设定 item['label'] 的宽度
+        label_width = 100
+        item['label'].setFixedWidth(label_width)
+
         # 然后根据判断，看 form_layout 放哪个
-        item['layout'].addWidget(item['label'])
+        layout.addWidget(item['label'], 1, alignment=Qt.AlignLeft)
 
         for option in options:
             item['edit'].addItem(option['label'], option['value'])
 
-        item['layout'].addWidget(item['edit'])
-        item['layout'].addWidget(item['text'])
+        item['edit'].currentTextChanged.connect(lambda _: callback(item['edit'].currentData()))
+        layout.addWidget(item['edit'], 10, alignment=Qt.AlignLeft)
+        layout.addWidget(item['text'], 10, alignment=Qt.AlignLeft)
 
         if self.is_editable:
-            print('text 隐藏')
             item['text'].hide()
         else:
-            print('edit 隐藏')
             item['edit'].hide()
 
-        form_layout.addLayout(item['layout'])
+        form_layout.addWidget(item['layout'], 1)
         self.controls[key] = item
         return item
 
@@ -96,7 +111,6 @@ class BaseUI:
                 self.controls[key]['edit'].hide()
 
     def get_value(self):
-
         m = {}
         for key in self.controls:
             if self.controls[key]['type'] == 'QLineEdit':
@@ -116,7 +130,7 @@ class BaseUI:
                 m[key] = self.controls[key]['edit'].isChecked()
             elif self.controls[key]['type'] == 'QComboBox':
                 # 下拉框
-                m[key] = self.controls[key]['edit'].currentText()
+                m[key] = self.controls[key]['edit'].currentData()
             elif self.controls[key]['type'] == 'QSlider':
                 # 滑块
                 m[key] = self.controls[key]['edit'].value()
@@ -130,11 +144,13 @@ class BaseUI:
         return m
 
     def set_value(self, data):
+        print('set_value', data)
         for key in data:
             if key in self.controls:
                 if self.controls[key]['type'] == 'QLineEdit':
                     # 单行输入框
                     self.controls[key]['edit'].setText(data[key])
+                    self.controls[key]['text'].setText(data[key])
                 elif self.controls[key]['type'] == 'QTextEdit':
                     # 多行输入框
                     self.controls[key]['edit'].setPlainText(data[key])
@@ -149,7 +165,13 @@ class BaseUI:
                     self.controls[key]['edit'].setChecked(data[key])
                 elif self.controls[key]['type'] == 'QComboBox':
                     # 下拉框
-                    self.controls[key]['edit'].setCurrentText(data[key])
+                    index = self.controls[key]['edit'].findData(data[key])
+                    if index != -1:
+                        self.controls[key]['edit'].setCurrentIndex(index)
+                        label = self.controls[key]['edit'].itemText(index)
+                        self.controls[key]['text'].setText(label)
+                    else:
+                        print(f"key={key}，未找到对应的下拉框选项值：{data[key]}")
                 elif self.controls[key]['type'] == 'QSlider':
                     # 滑块
                     self.controls[key]['edit'].setValue(data[key])
@@ -159,12 +181,16 @@ class BaseUI:
                 elif self.controls[key]['type'] == 'QDateTimeEdit':
                     # 日期时间选择器
                     self.controls[key]['edit'].setDateTime(data[key])
-                self.controls[key]['text'].setText(data[key])
 
 
 class UI(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.test_only_show_branch = None
+        self.test_mode = None
+        self.file_search_engine = None
+        self.gitlab_api_url = None
+        self.string_to_search = None
         self.button_print = None
         self.button_edit_enable = None
         self.button_edit_disable = None
@@ -192,6 +218,27 @@ class UI(QMainWindow):
 
         # 访问令牌
         self.token = self.baseUI.add_input(self.form_layout, 'gitlab_api_access_token', '个人访问令牌')
+        # 被搜索的字符串（限单行）
+        self.string_to_search = self.baseUI.add_input(self.form_layout, 'string_to_search', '被搜索的字符串')
+        # gitlab的地址
+        self.gitlab_api_url = self.baseUI.add_input(self.form_layout, 'gitlab_api_url', 'gitlab地址')
+        # 文件查询引擎
+        self.file_search_engine = self.baseUI.add_select(self.form_layout, 'file_search_engine', '文件查询引擎', [
+            {"label": "python", "value": "python"},
+            {"label": "go", "value": "go"},
+        ])
+
+        # 测试模式
+        self.test_mode = self.baseUI.add_select(self.form_layout, 'test_mode', '测试模式', [
+            {"label": "开", "value": True},
+            {"label": "关", "value": False},
+        ], self.on_test_mode_change)
+        # 测试模式
+        self.test_only_show_branch = self.baseUI.add_select(self.form_layout, 'test_only_show_branch',
+                                                            '只打印待处理的项目和分支', [
+                                                                {"label": "开", "value": True},
+                                                                {"label": "关", "value": False},
+                                                            ])
 
         # # 创建编辑和保存按钮
         self.button_print = QPushButton('打印值', self)
@@ -222,7 +269,7 @@ class UI(QMainWindow):
         self.show()
 
     def log(self):
-        print(self.baseUI.get_value())
+        print('log', self.baseUI.get_value())
 
     def set_status_edit(self):
         self.baseUI.edit_enable()
@@ -242,14 +289,20 @@ class UI(QMainWindow):
     def set_value(self, data):
         self.baseUI.set_value(data)
 
+    def on_test_mode_change(self, value):
+        print(value)
+        if value is True:
+            self.test_only_show_branch['layout'].show()
+        else:
+            self.test_only_show_branch['layout'].hide()
+
     def loadYaml(self, fileName):
         # 从yml文件中加载数据，并将其显示在表单中
         with open(fileName, 'r') as f:
             data = yaml.safe_load(f)
-        self.nameEdit.setText(data.get('姓名', ''))
-        gender = data.get('性别', '')
-        if gender in ['男', '女']:
-            self.genderCombo.setCurrentText(gender)
+
+        self.baseUI.set_value(data)
+        self.on_test_mode_change(data['test_mode'])
 
 
 if __name__ == '__main__':
@@ -257,5 +310,5 @@ if __name__ == '__main__':
     ex = UI()
     ex.set_status_text()
     # 加载yml文件
-    # ex.loadYaml('test.yml')
+    ex.loadYaml('config_private.yml_bak')
     sys.exit(app.exec_())
