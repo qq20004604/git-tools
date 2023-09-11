@@ -12,6 +12,7 @@ import re
 import datetime
 import ctypes
 import json
+import pytz  # 导入pytz库来处理时区
 
 
 class GitTool:
@@ -69,8 +70,9 @@ class GitTool:
         self.gl = gitlab.Gitlab(config['gitlab_api_url'], private_token=self.config['gitlab_api_access_token'])
 
         # 检查配置
-        if self.config['model'] not in ['group', 'repository', 'repositories']:
-            print("model 模式错误，只能是 group 群组模式，repository 单项目模式，repositories 多项目模式")
+        if self.config['model'] not in ['group', 'repository', 'repositories', 'del_timeout_branches']:
+            print(
+                "model 模式错误，只能是 group 群组模式，repository 单项目模式，repositories 多项目模式，del_timeout_branches 删除过期分支模式")
             exit()
         return config
 
@@ -597,6 +599,75 @@ class GitTool:
                 # 将项目clone到本地进行处理
                 self._clone_and_deal(branch, project)
 
+    # 删除过期分支（最后一次提交时间超过某个数字）
+    def _del_timeout_branches(self):
+        print("—————— 配置说明分割线（开始） ——————")
+        logging.info("—————— 配置说明分割线（开始） ——————")
+        msg = "本次处理的模式是：删除过期分支"
+        logging.info(msg)
+        print(msg)
+        self._branch_option()
+        project_list = []
+
+        # 先判断是什么模式
+        if self.config['type_del_timeout_branches']['repository_model'] == 'name':
+            repo_name = self.config['type_del_timeout_branches']['repository_name']
+            # 处理一下，如果是全链接，则移除前面那部分gitlab的地址
+            repo_name = repo_name.replace(self.config['gitlab_api_url'], '')
+            # 再处理一下，如果第一个字母是 / ，则删除
+            if repo_name.startswith("/") is True:
+                repo_name = repo_name[1:]
+            repo = self.gl.projects.get(repo_name)
+            msg = f"项目选择方式是：根据名称获取项目。项目名称是：{repo_name}"
+            logging.info(msg)
+            print(msg)
+        elif self.config['type_del_timeout_branches']['repository_model'] == 'id':
+            repo_id = self.config['type_del_timeout_branches']['repository_id']
+            repo = self.gl.projects.get(repo_id)
+            msg = f"项目选择方式是：根据仓库ID获取项目。项目ID是：{repo_id}，项目名称是：{repo.name}"
+            logging.info(msg)
+            print(msg)
+        else:
+            self.err_logger.info("无效配置，请检查type_del_timeout_branches.repository_model，程序已退出")
+            exit()
+
+        print("—————— 配置说明分割线（结束） ——————")
+        logging.info("—————— 配置说明分割线（结束） ——————")
+
+        # 再获取到所有分支
+        branches = repo.branches.list(get_all=True)
+
+        timeout_branches = []
+        for branch in branches:
+            committed_date = branch.attributes['commit']['committed_date']
+            format_date = datetime.datetime.fromisoformat(committed_date).replace(tzinfo=pytz.UTC)
+
+            # 获取当前日期
+            current_date = datetime.datetime.now(pytz.UTC)
+            # 计算日期差距
+            date_difference = current_date - format_date
+
+            timeout_d = self.config['type_del_timeout_branches']['timeout_day']
+            # 判断是否超过365天
+            if date_difference.days > timeout_d:
+                timeout_branches.append(branch)
+        print(
+            f"过期时间被设置为：{timeout_d}天，总计分支数量{len(branches)}个，过期分支数量{len(timeout_branches)}个，过期分支分别为：")
+
+        # 指定目标时区为UTC+8
+        target_timezone = pytz.timezone('Asia/Shanghai')
+
+        with open('./timeout_branch.csv', 'w') as file:
+            file.write("分支名,最后提交人,最后提交时间\n")
+            for b in timeout_branches:
+                last_commit_date_str = datetime.datetime.fromisoformat(
+                    b.attributes['commit']['committed_date']).astimezone(target_timezone).strftime(
+                    '%Y-%m-%d %H:%M:%S')
+                row = f"{b.name},{b.attributes['commit']['author_name']},{last_commit_date_str}\n"
+                file.write(row)
+                print(
+                    f"分支名：{b.name},最后提交人：{b.attributes['commit']['author_name']}，最后提交时间：{last_commit_date_str}")
+
     # 本地模式
     def _get_projects_by_model_local(self):
         pass
@@ -615,6 +686,8 @@ class GitTool:
             self._search_by_model_repository()
         elif self.config['model'] == 'repositories':
             self._get_projects_by_model_repositories()
+        elif self.config['model'] == 'del_timeout_branches':
+            self._del_timeout_branches()
         elif self.config['model'] == 'local':
             pass
         else:

@@ -1,7 +1,7 @@
 #### 基本配置
-# 仓库模式： group 群组模式，repository 单项目模式，repositories 多项目模式，local 本地模式
+# 仓库模式： group 群组模式，repository 单项目模式，repositories 多项目模式，local 本地模式，del_timeout_branches 删除过期分支模式
 # 注意：非本地模式，也是将项目拉到本地后进行处理。本地模式是给一个/多个本地的绝对路径，然后进行处理
-model: 'group'
+model: 'del_timeout_branches'
 # token，指gitlab的个人访问令牌
 gitlab_api_access_token: ''
 # 被搜索的字符串（限单行）
@@ -73,3 +73,14 @@ type_repositories:
   # 仓库名，把需要查询处理的复制粘贴到这里。每个一行
   repositories_name:
     - 'abc/def'
+
+## 删除过期分支模式
+type_del_timeout_branches:
+  # id 根据仓库id获取项目，name 根据仓库名获取项目。二选一
+  repository_model: 'name'
+  # 仓库id
+  repository_id: 1
+  # 仓库名
+  repository_name: 'abc/def'
+  # 过期时间设置（单位：天）
+  timeout_day: 365
